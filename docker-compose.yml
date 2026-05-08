@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  library-backend:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    networks:
+      - supabase_net
+
+networks:
+  supabase_net:
+    enable_ipv6: true
