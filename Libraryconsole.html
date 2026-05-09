@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    <title>Bibliotheca — Librarian Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root{
+          --bg:#0f0e0c;--surface:#1a1916;--surface2:#222019;--surface3:#2c2a26;
+          --border:rgba(255,255,255,0.07);--border-h:rgba(255,255,255,0.13);
+          --gold:#c9a84c;--gold-l:#e8c97a;--gold-d:rgba(201,168,76,0.14);--gold-d2:rgba(201,168,76,0.07);
+          --text:#f0ece3;--muted:#9a9690;--dim:#5c5a56;
+          --ok:#4caf82;--ok-bg:rgba(76,175,130,0.10);
+          --err:#e05252;--err-bg:rgba(224,82,82,0.10);
+          --info:#5b9bd5;--info-bg:rgba(91,155,213,0.10);
+          --warn:#d4944a;--warn-bg:rgba(212,148,74,0.10);
+        }
+        body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh}
+
+        /* SIDEBAR */
+        .sidebar{
+          position:fixed;top:0;left:0;width:252px;height:100vh;
+          background:var(--surface);border-right:1px solid var(--border);
+          display:flex;flex-direction:column;z-index:100;overflow-y:auto;
+        }
+        .sb-brand{padding:22px 20px 16px;border-bottom:1px solid var(--border)}
+        .sb-row{display:flex;align-items:center;gap:10px}
+        .sb-icon{width:34px;height:34px;background:var(--gold-d);border:1px solid rgba(201,168,76,.3);
+          border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+        .sb-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:var(--gold-l)}
+        .sb-sub{font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+
+        /* SERVER PING WIDGET */
+        .sb-ping{
+          margin:12px 16px 4px;
+          display:flex;align-items:center;gap:8px;
+          background:var(--surface2);border:1px solid var(--border);border-radius:7px;
+          padding:8px 11px;font-size:11.5px;color:var(--muted);cursor:pointer;
+          transition:border-color .2s;user-select:none;
+        }
+        .sb-ping:hover{border-color:var(--border-h)}
+        .ping-dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:background .4s}
+        .ping-dot.pinging{background:var(--warn);animation:blink 1s infinite}
+        .ping-dot.online{background:var(--ok)}
+        .ping-dot.offline{background:var(--err)}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+        .ping-info{flex:1;line-height:1.3;min-width:0}
+        .ping-info strong{display:block;color:var(--text);font-size:12px}
+        .ping-info span{display:block;font-size:10px;color:var(--dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+        .nav-sec{padding:14px 10px 6px}
+        .nav-lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:0 10px;margin-bottom:5px}
+        .nav-item{
+          display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;
+          cursor:pointer;font-size:13px;color:var(--muted);border:none;background:none;
+          width:100%;text-align:left;transition:all .15s;
+        }
+        .nav-item:hover{background:var(--surface3);color:var(--text)}
+        .nav-item.active{background:var(--gold-d);color:var(--gold-l);border:1px solid rgba(201,168,76,.2)}
+        .nav-em{font-size:15px;width:18px;flex-shrink:0;text-align:center}
+
+        /* MAIN */
+        .main{margin-left:252px;min-height:100vh;display:flex;flex-direction:column}
+        .topbar{
+          background:var(--surface);border-bottom:1px solid var(--border);
+          padding:16px 28px;display:flex;align-items:center;justify-content:space-between;
+          position:sticky;top:0;z-index:50;
+        }
+        .tb-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:500}
+        .tb-right{display:flex;align-items:center;gap:10px}
+        .tb-base{font-size:11px;font-family:monospace;color:var(--dim);background:var(--surface2);
+          border:1px solid var(--border);padding:4px 10px;border-radius:6px}
+        .tb-badge{font-size:11px;background:var(--gold-d);color:var(--gold);
+          border:1px solid rgba(201,168,76,.25);padding:3px 10px;border-radius:20px;letter-spacing:.04em}
+
+        .content{padding:28px;flex:1}
+
+        /* PANELS */
+        .panel{display:none}.panel.active{display:block}
+
+        /* STAT STRIP */
+        .stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
+        .stat-card{
+          background:var(--surface);border:1px solid var(--border);border-radius:12px;
+          padding:16px 18px;position:relative;overflow:hidden;
+        }
+        .stat-card::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:2px}
+        .sc-gold::after{background:var(--gold)}.sc-ok::after{background:var(--ok)}
+        .sc-info::after{background:var(--info)}.sc-warn::after{background:var(--warn)}
+        .stat-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:6px}
+        .stat-val{font-family:'Playfair Display',serif;font-size:26px;color:var(--text);line-height:1}
+
+        /* CARD */
+        .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:18px}
+        .card-head{
+          padding:15px 22px;border-bottom:1px solid var(--border);
+          display:flex;align-items:center;gap:11px;background:var(--surface2);
+        }
+        .card-ico{width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+        .card-title{font-size:13.5px;font-weight:500;color:var(--text)}
+        .card-desc{font-size:11.5px;color:var(--muted);margin-top:2px}
+        .mth{margin-left:auto;font-size:10.5px;font-family:monospace;padding:3px 8px;border-radius:5px;font-weight:600;letter-spacing:.03em}
+        .m-post{background:rgba(76,175,130,.12);color:#4caf82;border:1px solid rgba(76,175,130,.25)}
+        .m-get{background:rgba(91,155,213,.12);color:#5b9bd5;border:1px solid rgba(91,155,213,.25)}
+        .card-body{padding:22px}
+
+        /* ENDPOINT CHIP */
+        .ep{
+          display:inline-flex;align-items:center;gap:6px;font-family:monospace;font-size:11px;
+          color:var(--dim);background:var(--surface3);border:1px solid var(--border);
+          padding:4px 10px;border-radius:6px;margin-bottom:18px;word-break:break-all;
+        }
+
+        /* FORM */
+        .fg{display:grid;gap:14px;margin-bottom:18px}
+        .fg2{grid-template-columns:1fr 1fr}
+        .fg3{grid-template-columns:1fr 1fr 1fr}
+        .fg1{grid-template-columns:1fr}
+        .field{display:flex;flex-direction:column;gap:5px}
+        .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:500}
+        .field input,.field select,.field textarea{
+          background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+          padding:9px 13px;font-size:13.5px;color:var(--text);font-family:'DM Sans',sans-serif;
+          transition:border-color .15s;width:100%;
+        }
+        .field input:focus,.field select:focus,.field textarea:focus{
+          outline:none;border-color:rgba(201,168,76,.45);background:var(--surface3);
+        }
+        .field input::placeholder,.field textarea::placeholder{color:var(--dim)}
+        .field select option{background:var(--surface2)}
+        .field textarea{resize:vertical;min-height:76px}
+        .field input[type=number]{-moz-appearance:textfield}
+
+        /* RANGE */
+        .range-row{display:flex;align-items:center;gap:11px}
+        .range-row input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;padding:0}
+        .range-val{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold-l);min-width:40px;text-align:right}
+
+        /* TOGGLE */
+        .tog-row{display:flex;align-items:center;gap:11px;padding:8px 0}
+        .tog{width:42px;height:22px;background:var(--surface3);border:1px solid var(--border);
+          border-radius:11px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+        .tog::after{content:'absolute';width:16px;height:16px;background:var(--dim);
+          border-radius:50%;top:2px;left:2px;transition:all .2s}
+        .tog.on{background:var(--gold-d);border-color:rgba(201,168,76,.4)}
+        .tog.on::after{background:var(--gold);left:22px}
+        .tog-lbl{font-size:13px;color:var(--muted)}
+
+        /* BUTTONS */
+        .btn{
+          padding:9px 22px;border-radius:8px;font-size:13.5px;font-weight:500;cursor:pointer;
+          font-family:'DM Sans',sans-serif;border:none;transition:all .15s;
+          display:inline-flex;align-items:center;gap:7px;
+        }
+        .btn-p{background:var(--gold);color:#1a1500}
+        .btn-p:hover{background:var(--gold-l)}
+        .btn-p:active{transform:scale(.98)}
+        .btn-o{background:transparent;color:var(--muted);border:1px solid var(--border)}
+        .btn-o:hover{border-color:var(--border-h);color:var(--text)}
+        .btn-danger{background:#7a1f1f;color:#ffb3b3;border:1px solid rgba(224,82,82,.25)}
+        .btn-danger:hover{background:#9a2525}
+        .btn:disabled{opacity:.45;cursor:not-allowed}
+        .btn-row{display:flex;align-items:center;gap:11px}
+
+        /* RESPONSE */
+        .res-box{border-radius:9px;padding:13px 15px;font-size:12.5px;line-height:1.6;margin-top:14px;display:none;border:1px solid transparent}
+        .res-box.show{display:block}
+        .res-box.ok{background:var(--ok-bg);border-color:rgba(76,175,130,.22);color:#6ecfa4}
+        .res-box.er{background:var(--err-bg);border-color:rgba(224,82,82,.22);color:#e88888}
+        .res-box.ld{background:var(--gold-d2);border-color:rgba(201,168,76,.18);color:var(--gold)}
+        .res-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;font-weight:500;opacity:.7}
+        .res-body{font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}
+
+        hr.dv{border:none;border-top:1px solid var(--border);margin:18px 0}
+
+        .warn-note{
+          background:var(--warn-bg);border:1px solid rgba(212,148,74,.22);border-radius:8px;
+          padding:11px 14px;font-size:12.5px;color:var(--warn);margin-bottom:16px;line-height:1.55;
+        }
+
+        .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .spin{width:13px;height:13px;border:2px solid rgba(201,168,76,.3);border-top-color:var(--gold);
+          border-radius:50%;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle}
+
+        ::-webkit-scrollbar{width:5px;height:5px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <div class="sb-brand">
+        <div class="sb-row">
+            <div class="sb-icon">📚</div>
+            <div>
+                <div class="sb-name">Bibliotheca</div>
+                <div class="sb-sub">Librarian Console</div>
+            </div>
+        </div>
+        <div class="sb-ping" onclick="pingServer()" title="Click to ping / wake server">
+            <div class="ping-dot" id="ping-dot"></div>
+            <div class="ping-info">
+                <strong id="ping-main">Server Status</strong>
+                <span id="ping-sub">Click to wake server</span>
+            </div>
+            <span id="ping-spin-wrap"></span>
+        </div>
+    </div>
+
+    <div class="nav-sec">
+        <div class="nav-lbl">Overview</div>
+        <button class="nav-item active" onclick="nav('dashboard',this)"><span class="nav-em">🏛️</span>Dashboard</button>
+    </div>
+    <div class="nav-sec">
+        <div class="nav-lbl">Books</div>
+        <button class="nav-item" onclick="nav('search',this)"><span class="nav-em">🔍</span>Search Books</button>
+        <button class="nav-item" onclick="nav('add-book',this)"><span class="nav-em">➕</span>Add Book</button>
+        <button class="nav-item" onclick="nav('copies',this)"><span class="nav-em">📦</span>Add Copies</button>
+        <button class="nav-item" onclick="nav('damaged',this)"><span class="nav-em">⚠️</span>Report Damaged</button>
+    </div>
+    <div class="nav-sec">
+        <div class="nav-lbl">Members</div>
+        <button class="nav-item" onclick="nav('add-user',this)"><span class="nav-em">👤</span>Register Member</button>
+        <button class="nav-item" onclick="nav('all-users',this)"><span class="nav-em">👥</span>All Members</button>
+        <button class="nav-item" onclick="nav('profile',this)"><span class="nav-em">🪪</span>Member Profile</button>
+        <button class="nav-item" onclick="nav('fine',this)"><span class="nav-em">💳</span>Pay Fine</button>
+    </div>
+    <div class="nav-sec">
+        <div class="nav-lbl">Borrowing</div>
+        <button class="nav-item" onclick="nav('borrow',this)"><span class="nav-em">📤</span>Borrow Book</button>
+        <button class="nav-item" onclick="nav('return',this)"><span class="nav-em">📥</span>Return Book</button>
+    </div>
+    <div class="nav-sec">
+        <div class="nav-lbl">Waitlist</div>
+        <button class="nav-item" onclick="nav('waitlist',this)"><span class="nav-em">⏳</span>Join Waitlist</button>
+        <button class="nav-item" onclick="nav('claim',this)"><span class="nav-em">✅</span>Claim Book</button>
+    </div>
+</nav>
+
+<div class="main">
+    <div class="topbar">
+        <div class="tb-title" id="tb-title">Dashboard</div>
+        <div class="tb-right">
+            <div class="tb-base">library-management-system.onrender.com</div>
+            <div class="tb-badge">Librarian Panel</div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <div class="panel active" id="p-dashboard">
+            <div class="stat-strip">
+                <div class="stat-card sc-gold"><div class="stat-lbl">Total Endpoints</div><div class="stat-val">12</div></div>
+                <div class="stat-card sc-ok"><div class="stat-lbl">Book Routes</div><div class="stat-val">4</div></div>
+                <div class="stat-card sc-info"><div class="stat-lbl">User Routes</div><div class="stat-val">4</div></div>
+                <div class="stat-card sc-warn"><div class="stat-lbl">Borrow / Wait</div><div class="stat-val">4</div></div>
+            </div>
+
+            <div class="two-col">
+                <div class="card">
+                    <div class="card-head">
+                        <div class="card-ico" style="background:var(--gold-d)">🏛️</div>
+                        <div>
+                            <div class="card-title">Welcome, Librarian</div>
+                            <div class="card-desc">Full API access — no Postman required</div>
+                        </div>
+                    </div>
+                    <div class="card-body" style="font-size:13.5px;color:var(--muted);line-height:1.8">
+                        Navigate the sidebar to access every API operation. Each panel provides a form strictly tailored to your Spring Boot entity fields.<br><br>
+                        <strong style="color:var(--text)">Render free tier</strong> — the server sleeps after 15 min of inactivity. Click the <span style="color:var(--gold)">Server Status</span> widget in the sidebar to wake it before making requests.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-head">
+                        <div class="card-ico" style="background:var(--info-bg)">🔧</div>
+                        <div>
+                            <div class="card-title">Enable CORS in Spring Boot</div>
+                            <div class="card-desc">Required for browser → Render requests to work</div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Add this configuration class to your project:</p>
+                        <pre style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:11.5px;color:#a8d0a0;overflow-x:auto;line-height:1.75">@Configuration
+public class CorsConfig implements WebMvcConfigurer {
+  @Override
+  public void addCorsMappings(CorsRegistry registry) {
+    registry.addMapping("/**")
+      .allowedOrigins("*")
+      .allowedMethods("GET","POST","PUT","DELETE")
+      .allowedHeaders("*");
+  }
+}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--surface3)">🗺️</div>
+                    <div><div class="card-title">API Endpoint Reference</div><div class="card-desc">All 12 routes mapped to your controllers</div></div>
+                </div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px">
+                        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
+                            <div style="color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📚 Books</div>
+                            <div style="color:var(--muted);line-height:2.2;font-family:monospace;font-size:11.5px">
+                                <span style="color:var(--info)">GET </span> /books/displayByKeyword<br>
+                                <span style="color:var(--ok)">POST</span> /books/addBook<br>
+                                <span style="color:var(--ok)">POST</span> /books/add-more-copies<br>
+                                <span style="color:var(--ok)">POST</span> /books/report-damaged-copies
+                            </div>
+                        </div>
+                        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
+                            <div style="color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">👤 Users</div>
+                            <div style="color:var(--muted);line-height:2.2;font-family:monospace;font-size:11.5px">
+                                <span style="color:var(--ok)">POST</span> /users/add<br>
+                                <span style="color:var(--info)">GET </span> /users/display-all<br>
+                                <span style="color:var(--info)">GET </span> /users/displayById<br>
+                                <span style="color:var(--ok)">POST</span> /users/payFine
+                            </div>
+                        </div>
+                        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
+                            <div style="color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📤 Borrowing</div>
+                            <div style="color:var(--muted);line-height:2.2;font-family:monospace;font-size:11.5px">
+                                <span style="color:var(--ok)">POST</span> /borrow/borrowBook<br>
+                                <span style="color:var(--ok)">POST</span> /borrow/returnBook
+                            </div>
+                        </div>
+                        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
+                            <div style="color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">⏳ Waitlist</div>
+                            <div style="color:var(--muted);line-height:2.2;font-family:monospace;font-size:11.5px">
+                                <span style="color:var(--ok)">POST</span> /join<br>
+                                <span style="color:var(--ok)">POST</span> /claim
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-search">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--info-bg)">🔍</div>
+                    <div><div class="card-title">Search Books by Keyword</div><div class="card-desc">Matches against title or author</div></div>
+                    <span class="mth m-get">GET</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 GET /books/displayByKeyword?keyword={value}</div>
+                    <div class="fg fg1">
+                        <div class="field"><label>Keyword</label>
+                            <input type="text" id="s-kw" placeholder="e.g. Tolkien, Fiction, 1984, Coelho …"/>
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="searchBooks()">🔍 Search</button>
+                        <button class="btn btn-o" onclick="clr('s')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-s"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-add-book">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--ok-bg)">➕</div>
+                    <div><div class="card-title">Add New Book</div><div class="card-desc">Registers a book mapping directly to the Book.java entity</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /books/addBook · Content-Type: application/json</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Title ✱</label><input type="text" id="ab-title" placeholder="e.g. The Alchemist"/></div>
+                        <div class="field"><label>Author ✱</label><input type="text" id="ab-author" placeholder="e.g. Paulo Coelho"/></div>
+                    </div>
+
+                    <div class="fg fg1">
+                        <div class="field">
+                            <label>Initial Copies (Sets totalCopies & availableCopies) — <span id="ab-cv">5</span></label>
+                            <div class="range-row">
+                                <input type="range" id="ab-copies" min="1" max="50" value="5"/>
+                                <span class="range-val" id="ab-rv">5</span>
+                            </div>
+                        </div>
+                        <div class="field"><label>Description</label><textarea id="ab-desc" placeholder="Brief description of the book …"></textarea></div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="addBook()">➕ Add Book</button>
+                        <button class="btn btn-o" onclick="clr('ab')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-ab"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-copies">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--info-bg)">📦</div>
+                    <div><div class="card-title">Add More Copies</div><div class="card-desc">Increase stock for an existing book</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /books/add-more-copies?title={}&copies={}</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Book Title (exact)</label><input type="text" id="ac-title" placeholder="Must match exactly as stored"/></div>
+                        <div class="field">
+                            <label>Copies to Add — <span id="ac-cv">10</span></label>
+                            <div class="range-row">
+                                <input type="range" id="ac-copies" min="1" max="100" value="10"/>
+                                <span class="range-val" id="ac-rv">10</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="addCopies()">📦 Add Copies</button>
+                        <button class="btn btn-o" onclick="clr('ac')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-ac"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-damaged">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--err-bg)">⚠️</div>
+                    <div><div class="card-title">Report Damaged Copies</div><div class="card-desc">Flags copies as damaged — reduces available count</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /books/report-damaged-copies?title={}&copies={}</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Book Title (exact)</label><input type="text" id="dmg-title" placeholder="Exact title as stored"/></div>
+                        <div class="field"><label>Damaged Count</label><input type="number" id="dmg-copies" min="1" placeholder="e.g. 2"/></div>
+                    </div>
+                    <div class="tog-row">
+                        <div class="tog" id="dmg-tog" onclick="this.classList.toggle('on')"></div>
+                        <span class="tog-lbl">I confirm these copies are physically verified as damaged</span>
+                    </div>
+                    <div class="btn-row" style="margin-top:14px">
+                        <button class="btn btn-danger" onclick="reportDamaged()">⚠️ Report Damaged</button>
+                        <button class="btn btn-o" onclick="clr('dmg')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-dmg"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-add-user">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--ok-bg)">👤</div>
+                    <div>
+                        <div class="card-title">Register New Member</div>
+                        <div class="card-desc">All fields map directly to the User.java entity</div>
+                    </div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /users/add · Content-Type: application/json</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Email ✱</label><input type="email" id="u-email" placeholder="member@example.com"/></div>
+                        <div class="field"><label>Password ✱</label><input type="password" id="u-password" placeholder="Min 8 characters"/></div>
+                    </div>
+                    <div class="fg fg3">
+                        <div class="field">
+                            <label>Role ✱</label>
+                            <select id="u-role">
+                                <option value="MEMBER">MEMBER</option>
+                                <option value="ADMIN">ADMIN</option>
+                            </select>
+                        </div>
+                        <div class="field"><label>Contact ✱</label><input type="tel" id="u-contact" placeholder="+91 98765 43210"/></div>
+                        <div class="field"><label>City ✱</label><input type="text" id="u-city" placeholder="e.g. Chandigarh"/></div>
+                    </div>
+                    <div class="fg fg1">
+                        <div class="field"><label>Address ✱</label><input type="text" id="u-address" placeholder="e.g. House 12, Sector 22, Kharar, Punjab"/></div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="addUser()">👤 Register Member</button>
+                        <button class="btn btn-o" onclick="clr('u')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-u"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-all-users">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--info-bg)">👥</div>
+                    <div><div class="card-title">All Members</div><div class="card-desc">Fetch every registered library member</div></div>
+                    <span class="mth m-get">GET</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 GET /users/display-all</div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="getAllUsers()">👥 Load All Members</button>
+                    </div>
+                    <div class="res-box" id="r-au"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-profile">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--info-bg)">🪪</div>
+                    <div><div class="card-title">Member Profile</div><div class="card-desc">Lookup a single member + their borrow history by ID</div></div>
+                    <span class="mth m-get">GET</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 GET /users/displayById?id={}</div>
+                    <div class="fg fg1">
+                        <div class="field"><label>Member ID</label><input type="number" id="mp-id" placeholder="e.g. 1" style="max-width:180px"/></div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="getProfile()">🪪 Fetch Profile</button>
+                        <button class="btn btn-o" onclick="clr('mp')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-mp"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-fine">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--warn-bg)">💳</div>
+                    <div><div class="card-title">Pay Fine</div><div class="card-desc">Record a fine payment against a member's totalFines balance</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /users/payFine?email={}&amount={}</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Member Email</label><input type="email" id="pf-email" placeholder="member@example.com"/></div>
+                        <div class="field">
+                            <label>Fine Amount ₹ — <span id="pf-cv">50</span></label>
+                            <div class="range-row">
+                                <input type="range" id="pf-amt" min="10" max="2000" step="10" value="50"/>
+                                <span class="range-val" id="pf-rv">₹50</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="warn-note">⚠️ Verify the member is present and the amount matches the system balance before processing.</div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="payFine()">💳 Process Payment</button>
+                        <button class="btn btn-o" onclick="clr('pf')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-pf"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-borrow">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--ok-bg)">📤</div>
+                    <div><div class="card-title">Issue / Borrow Book</div><div class="card-desc">Lends a book — creates a BorrowHistory record</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /borrow/borrowBook?bookId={}&email={}</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Book ID</label><input type="number" id="bw-bid" placeholder="e.g. 3"/></div>
+                        <div class="field"><label>Member Email</label><input type="email" id="bw-email" placeholder="member@example.com"/></div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="borrowBook()">📤 Issue Book</button>
+                        <button class="btn btn-o" onclick="clr('bw')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-bw"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-return">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--info-bg)">📥</div>
+                    <div><div class="card-title">Return Book</div><div class="card-desc">Processes a return — sets BorrowHistory status to RETURNED</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /borrow/returnBook?bookId={}&email={}</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Book ID</label><input type="number" id="rt-bid" placeholder="e.g. 3"/></div>
+                        <div class="field"><label>Member Email</label><input type="email" id="rt-email" placeholder="member@example.com"/></div>
+                    </div>
+                    <div class="tog-row">
+                        <div class="tog" id="rt-tog" onclick="this.classList.toggle('on')"></div>
+                        <span class="tog-lbl">Book physically inspected and in acceptable condition</span>
+                    </div>
+                    <div class="btn-row" style="margin-top:14px">
+                        <button class="btn btn-p" onclick="returnBook()">📥 Process Return</button>
+                        <button class="btn btn-o" onclick="clr('rt')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-rt"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-waitlist">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--warn-bg)">⏳</div>
+                    <div><div class="card-title">Join Waitlist</div><div class="card-desc">Adds member to waitlist for a book (WaitStatus: PENDING)</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /join?id={}&email={}</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Book ID</label><input type="number" id="wl-bid" placeholder="e.g. 7"/></div>
+                        <div class="field"><label>Member Email</label><input type="email" id="wl-email" placeholder="member@example.com"/></div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="joinWaitlist()">⏳ Add to Waitlist</button>
+                        <button class="btn btn-o" onclick="clr('wl')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-wl"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="p-claim">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-ico" style="background:var(--ok-bg)">✅</div>
+                    <div><div class="card-title">Claim Notified Book</div><div class="card-desc">Member claims a book they were notified about (WaitStatus → FULFILLED)</div></div>
+                    <span class="mth m-post">POST</span>
+                </div>
+                <div class="card-body">
+                    <div class="ep">🌐 POST /claim?email={}&bookid={}</div>
+                    <div class="fg fg2">
+                        <div class="field"><label>Member Email</label><input type="email" id="cl-email" placeholder="member@example.com"/></div>
+                        <div class="field"><label>Book ID</label><input type="number" id="cl-bid" placeholder="e.g. 7"/></div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-p" onclick="claimBook()">✅ Claim Book</button>
+                        <button class="btn btn-o" onclick="clr('cl')">Clear</button>
+                    </div>
+                    <div class="res-box" id="r-cl"></div>
+                </div>
+            </div>
+        </div>
+
+    </div></div><script>
+    // Ensure you change this to your actual deployed URL when pushing to production
+    const BASE = 'http://localhost:8080';
+
+    /* ── NAV ── */
+    const TITLES = {
+      dashboard:'Dashboard', search:'Search Books', 'add-book':'Add Book',
+      copies:'Add Copies', damaged:'Report Damaged Copies', 'add-user':'Register Member',
+      'all-users':'All Members', profile:'Member Profile', fine:'Pay Fine',
+      borrow:'Borrow Book', return:'Return Book', waitlist:'Join Waitlist', claim:'Claim Book'
+    };
+    function nav(id, el) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById('p-' + id).classList.add('active');
+      el.classList.add('active');
+      document.getElementById('tb-title').textContent = TITLES[id] || id;
+    }
+
+    /* ── RANGE INPUTS ── */
+    function bindRange(inputId, displayIds, prefix='') {
+      const el = document.getElementById(inputId);
+      if (!el) return;
+      el.addEventListener('input', function() {
+        displayIds.forEach(d => {
+          const t = document.getElementById(d);
+          if (t) t.textContent = prefix + this.value;
+        });
+      });
+    }
+    bindRange('ab-copies', ['ab-cv','ab-rv']);
+    bindRange('ac-copies', ['ac-cv','ac-rv']);
+    bindRange('pf-amt', ['pf-cv'], '');
+    document.getElementById('pf-amt').addEventListener('input', function() {
+      document.getElementById('pf-cv').textContent = this.value;
+      document.getElementById('pf-rv').textContent = '₹' + this.value;
+    });
+
+    /* ── SERVER PING ── */
+    async function pingServer() {
+      const dot  = document.getElementById('ping-dot');
+      const main = document.getElementById('ping-main');
+      const sub  = document.getElementById('ping-sub');
+      const spw  = document.getElementById('ping-spin-wrap');
+
+      dot.className = 'ping-dot pinging';
+      main.textContent = 'Waking server…';
+      sub.textContent  = 'Sending GET to /';
+      spw.innerHTML = '<span class="spin"></span>';
+
+      try {
+        const t0 = Date.now();
+        await fetch(BASE + '/', { signal: AbortSignal.timeout(20000) });
+        const ms = Date.now() - t0;
+        dot.className = 'ping-dot online';
+        main.textContent = 'Server Online';
+        sub.textContent  = `Responded in ${ms}ms`;
+      } catch(e) {
+        dot.className = 'ping-dot offline';
+        main.textContent = 'Unreachable';
+        sub.textContent  = e.name === 'TimeoutError' ? 'Timed out (20s)' : 'Check CORS / URL';
+      } finally {
+        spw.innerHTML = '';
+      }
+    }
+    window.addEventListener('load', () => setTimeout(pingServer, 900));
+
+    /* ── API HELPER ── */
+    function loading(id) {
+      const b = document.getElementById('r-' + id);
+      b.className = 'res-box ld show';
+      b.innerHTML = '<div class="res-lbl">Sending request…</div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span class="spin"></span><span style="font-size:13px">Waiting for server</span></div>';
+    }
+    function result(id, ok, data) {
+      const b = document.getElementById('r-' + id);
+      b.className = 'res-box show ' + (ok ? 'ok' : 'er');
+      const body = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+      b.innerHTML = `<div class="res-lbl">${ok ? '✅ Success' : '❌ Error'}</div>` +
+        `<div class="res-body">${esc(body)}</div>`;
+    }
+    function clr(id) {
+      const b = document.getElementById('r-' + id);
+      if (b) { b.className = 'res-box'; b.innerHTML = ''; }
+    }
+    function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    async function api(id, url, opts = {}) {
+      loading(id);
+      try {
+        const res = await fetch(url, opts);
+        const txt = await res.text();
+        let parsed; try { parsed = JSON.parse(txt); } catch { parsed = txt; }
+        result(id, res.ok, parsed);
+      } catch(e) {
+        result(id, false,
+          'Network error: ' + e.message +
+          '\n\nTips:\n' +
+          '1. Click "Server Status" in the sidebar to wake the Render server\n' +
+          '2. Add @CrossOrigin or CorsConfig class to your Spring Boot app (see Dashboard)\n' +
+          '3. Open browser DevTools → Console for more details'
+        );
+      }
+    }
+
+    /* ── BOOKS ── */
+    function searchBooks() {
+      const kw = document.getElementById('s-kw').value.trim();
+      if (!kw) return alert('Enter a keyword first.');
+      api('s', `${BASE}/books/displayByKeyword?keyword=${encodeURIComponent(kw)}`);
+    }
+
+    function addBook() {
+      const title  = document.getElementById('ab-title').value.trim();
+      const author = document.getElementById('ab-author').value.trim();
+      if (!title || !author) return alert('Title and Author are required.');
+
+      const copiesAmount = parseInt(document.getElementById('ab-copies').value);
+
+      api('ab', `${BASE}/books/addBook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title,
+          author: author,
+          description: document.getElementById('ab-desc').value.trim(),
+          totalCopies: copiesAmount,
+          availableCopies: copiesAmount
+        })
+      });
+    }
+
+    function addCopies() {
+      const title  = document.getElementById('ac-title').value.trim();
+      const copies = document.getElementById('ac-copies').value;
+      if (!title) return alert('Book title is required.');
+      api('ac', `${BASE}/books/add-more-copies?title=${encodeURIComponent(title)}&copies=${copies}`, { method:'POST' });
+    }
+
+    function reportDamaged() {
+      const title  = document.getElementById('dmg-title').value.trim();
+      const copies = document.getElementById('dmg-copies').value;
+      if (!title || !copies) return alert('Title and count are required.');
+      if (!document.getElementById('dmg-tog').classList.contains('on'))
+        return alert('Toggle the confirmation switch before reporting.');
+      api('dmg', `${BASE}/books/report-damaged-copies?title=${encodeURIComponent(title)}&copies=${copies}`, { method:'POST' });
+    }
+
+    /* ── USERS ── */
+    function addUser() {
+      const email    = document.getElementById('u-email').value.trim();
+      const password = document.getElementById('u-password').value;
+      const role     = document.getElementById('u-role').value;
+      const contact  = document.getElementById('u-contact').value.trim();
+      const city     = document.getElementById('u-city').value.trim();
+      const address  = document.getElementById('u-address').value.trim();
+      if (!email || !password || !contact || !city || !address)
+        return alert('All fields are required.');
+
+      api('u', `${BASE}/users/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role, contact, city, address })
+      });
+    }
+
+    function getAllUsers() { api('au', `${BASE}/users/display-all`); }
+
+    function getProfile() {
+      const id = document.getElementById('mp-id').value.trim();
+      if (!id) return alert('Member ID is required.');
+      api('mp', `${BASE}/users/displayById?id=${encodeURIComponent(id)}`);
+    }
+
+    function payFine() {
+      const email  = document.getElementById('pf-email').value.trim();
+      const amount = document.getElementById('pf-amt').value;
+      if (!email) return alert('Member email is required.');
+      api('pf', `${BASE}/users/payFine?email=${encodeURIComponent(email)}&amount=${amount}`, { method:'POST' });
+    }
+
+    /* ── BORROW ── */
+    function borrowBook() {
+      const bookId = document.getElementById('bw-bid').value.trim();
+      const email  = document.getElementById('bw-email').value.trim();
+      if (!bookId || !email) return alert('Book ID and email are required.');
+      api('bw', `${BASE}/borrow/borrowBook?bookId=${encodeURIComponent(bookId)}&email=${encodeURIComponent(email)}`, { method:'POST' });
+    }
+
+    function returnBook() {
+      const bookId = document.getElementById('rt-bid').value.trim();
+      const email  = document.getElementById('rt-email').value.trim();
+      if (!bookId || !email) return alert('Book ID and email are required.');
+      api('rt', `${BASE}/borrow/returnBook?bookId=${encodeURIComponent(bookId)}&email=${encodeURIComponent(email)}`, { method:'POST' });
+    }
+
+    /* ── WAITLIST ── */
+    function joinWaitlist() {
+      const id    = document.getElementById('wl-bid').value.trim();
+      const email = document.getElementById('wl-email').value.trim();
+      if (!id || !email) return alert('Book ID and email are required.');
+      api('wl', `${BASE}/join?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`, { method:'POST' });
+    }
+
+    function claimBook() {
+      const email  = document.getElementById('cl-email').value.trim();
+      const bookid = document.getElementById('cl-bid').value.trim();
+      if (!email || !bookid) return alert('Email and Book ID are required.');
+      api('cl', `${BASE}/claim?email=${encodeURIComponent(email)}&bookid=${encodeURIComponent(bookid)}`, { method:'POST' });
+    }
+</script>
+</body>
+</html>
